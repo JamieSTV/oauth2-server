@@ -107,7 +107,6 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
         }
 
         $encryptedAuthCode = $this->getRequestParameter('code', $request, null);
-
         if (!\is_string($encryptedAuthCode)) {
             throw OAuthServerException::invalidRequest('code');
         }
@@ -336,19 +335,21 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
      */
     public function completeAuthorizationRequest(AuthorizationRequest $authorizationRequest)
     {
-        if ($authorizationRequest->getUser() instanceof UserEntityInterface === false) {
-            throw new LogicException('An instance of UserEntityInterface should be set on the AuthorizationRequest');
-        }
+        // if ($authorizationRequest->getUser() instanceof UserEntityInterface === false) {
+        //     throw new LogicException('An instance of UserEntityInterface should be set on the AuthorizationRequest');
+        // }
 
         $finalRedirectUri = $authorizationRequest->getRedirectUri()
-                          ?? $this->getClientRedirectUri($authorizationRequest);
+                        ?? $this->getClientRedirectUri($authorizationRequest);
+
+        $userIdentifier = !is_null($authorizationRequest->getUser()) ? $authorizationRequest->getUser()->getIdentifier() : null;
 
         // The user approved the client, redirect them back with an auth code
         if ($authorizationRequest->isAuthorizationApproved() === true) {
             $authCode = $this->issueAuthCode(
                 $this->authCodeTTL,
                 $authorizationRequest->getClient(),
-                $authorizationRequest->getUser()->getIdentifier(),
+                $userIdentifier,
                 $authorizationRequest->getRedirectUri(),
                 $authorizationRequest->getScopes()
             );
@@ -358,7 +359,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
                 'redirect_uri'          => $authCode->getRedirectUri(),
                 'auth_code_id'          => $authCode->getIdentifier(),
                 'scopes'                => $authCode->getScopes(),
-                'user_id'               => $authCode->getUserIdentifier(),
+                'user_id'               => $authCode->getUserIdentifier() ?? null,
                 'expire_time'           => (new DateTimeImmutable())->add($this->authCodeTTL)->getTimestamp(),
                 'code_challenge'        => $authorizationRequest->getCodeChallenge(),
                 'code_challenge_method' => $authorizationRequest->getCodeChallengeMethod(),
@@ -369,7 +370,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
             if ($jsonPayload === false) {
                 throw new LogicException('An error was encountered when JSON encoding the authorization request response');
             }
-
+            
             $response = new RedirectResponse();
             $response->setRedirectUri(
                 $this->makeRedirectUri(
